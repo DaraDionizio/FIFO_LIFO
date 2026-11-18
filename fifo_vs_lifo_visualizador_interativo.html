@@ -1,0 +1,1191 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Estruturas de Dados: FIFO vs LIFO</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            canvas: '#09090b',
+            card: '#111114',
+            cardBorder: '#27272a',
+            highlight: '#facc15',
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Base styles and custom motion-graphics animations */
+    body {
+      background-color: #09090b;
+      color: #fafafa;
+      overflow-x: hidden;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* Block base styling matching the video's crisp rounded squares */
+    .data-block {
+      position: absolute;
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Inter', sans-serif;
+      font-weight: 800;
+      font-size: 1.25rem;
+      color: #09090b;
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+      transition: left 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+                  bottom 0.45s cubic-bezier(0.34, 1.4, 0.64, 1),
+                  transform 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+                  opacity 0.35s ease;
+      user-select: none;
+      z-index: 10;
+    }
+
+    @media (max-width: 420px) {
+      .data-block {
+        width: 38px;
+        height: 38px;
+        font-size: 1.05rem;
+        border-radius: 8px;
+      }
+    }
+
+    /* FIFO Curved Entry Animation (Left top curve -> inside left mouth -> target slot) */
+    @keyframes fifoEnqueueArc {
+      0% {
+        opacity: 0;
+        transform: translate(-64px, -68px) rotate(-32deg) scale(0.85);
+      }
+      42% {
+        opacity: 1;
+        transform: translate(-18px, -12px) rotate(-8deg) scale(1);
+      }
+      100% {
+        opacity: 1;
+        transform: translate(0, 0) rotate(0deg) scale(1);
+      }
+    }
+
+    /* FIFO Curved Exit Animation (Right exit -> down-right curve & fade) */
+    @keyframes fifoDequeueArc {
+      0% {
+        opacity: 1;
+        transform: translate(0, 0) rotate(0deg) scale(1);
+      }
+      45% {
+        opacity: 1;
+        transform: translate(34px, 14px) rotate(14deg) scale(1);
+      }
+      100% {
+        opacity: 0;
+        transform: translate(68px, 74px) rotate(38deg) scale(0.85);
+      }
+    }
+
+    /* LIFO Curved Entry Animation (Top-left curve -> down into open mouth -> drop to stack) */
+    @keyframes lifoPushArc {
+      0% {
+        opacity: 0;
+        transform: translate(-62px, -84px) rotate(-30deg) scale(0.85);
+      }
+      40% {
+        opacity: 1;
+        transform: translate(-12px, -36px) rotate(-6deg) scale(1);
+      }
+      82% {
+        opacity: 1;
+        transform: translate(0, 4px) rotate(0deg) scale(1.03, 0.96);
+      }
+      100% {
+        opacity: 1;
+        transform: translate(0, 0) rotate(0deg) scale(1);
+      }
+    }
+
+    /* LIFO Curved Exit Animation (Lift up out of mouth -> curve right & fade) */
+    @keyframes lifoPopArc {
+      0% {
+        opacity: 1;
+        transform: translate(0, 0) rotate(0deg) scale(1);
+      }
+      45% {
+        opacity: 1;
+        transform: translate(14px, -44px) rotate(10deg) scale(1);
+      }
+      100% {
+        opacity: 0;
+        transform: translate(72px, -92px) rotate(35deg) scale(0.85);
+      }
+    }
+
+    .anim-fifo-in {
+      animation: fifoEnqueueArc 0.52s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+
+    .anim-fifo-out {
+      animation: fifoDequeueArc 0.48s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+      pointer-events: none;
+      z-index: 20;
+    }
+
+    .anim-lifo-in {
+      animation: lifoPushArc 0.54s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+
+    .anim-lifo-out {
+      animation: lifoPopArc 0.48s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+      pointer-events: none;
+      z-index: 20;
+    }
+
+    /* Subtle shake feedback on Overflow / Underflow */
+    @keyframes subtleShake {
+      0%, 100% { transform: translateX(0); }
+      20% { transform: translateX(-6px); }
+      40% { transform: translateX(6px); }
+      60% { transform: translateX(-4px); }
+      80% { transform: translateX(4px); }
+    }
+
+    .shake-feedback {
+      animation: subtleShake 0.36s ease-in-out;
+    }
+
+    /* Custom subtle scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #09090b;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #27272a;
+      border-radius: 9999px;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between selection:bg-yellow-400 selection:text-zinc-950">
+
+  <!-- Top Navigation & Global Controls -->
+  <header class="w-full border-b border-zinc-800/80 bg-zinc-950/90 backdrop-blur-md sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+      
+      <!-- Brand / Title -->
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-xl bg-yellow-400 text-zinc-950 flex items-center justify-center font-mono font-extrabold text-base shadow-lg shadow-yellow-400/10">
+            ⇄
+          </div>
+          <div>
+            <h1 class="text-lg sm:text-xl font-extrabold tracking-tight text-white">
+              Estruturas de Dados: 
+              <!-- <span class="text-yellow-400">FIFO vs LIFO</span> -->
+            </h1>
+            <!-- <p class="text-xs text-zinc-400 hidden sm:block">
+              Visualização interativa de Fila (<span class="font-mono text-zinc-300">Queue</span>) e Pilha (<span class="font-mono text-zinc-300">Stack</span>)
+            </p> -->
+          </div>
+        </div>
+
+        <!-- Sound Toggle Button (Mobile right) -->
+        <button
+          id="soundToggleBtnMobile"
+          onclick="toggleSound()"
+          title="Alternar efeitos sonoros"
+          class="lg:hidden p-2.5 rounded-xl border border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 transition active:scale-95"
+          aria-label="Alternar som"
+        >
+          <span id="soundIconMobile">🔊</span>
+        </button>
+      </div>
+
+      <!-- Mode Switcher Tabs + Global Video Sequence Button -->
+      <div class="flex flex-wrap items-center gap-2 sm:gap-3">
+        <!-- View Mode Tabs -->
+        <div class="inline-flex p-1 rounded-xl bg-zinc-900 border border-zinc-800 w-full sm:w-auto" role="tablist">
+          <button
+            id="tab-both"
+            onclick="setViewMode('both')"
+            class="flex-1 sm:flex-initial px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold transition bg-zinc-800 text-white shadow-sm"
+          >
+            Lado a Lado (Ambos)
+          </button>
+          <button
+            id="tab-fifo"
+            onclick="setViewMode('fifo')"
+            class="flex-1 sm:flex-initial px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold transition text-zinc-400 hover:text-white"
+          >
+            FIFO — Queue
+          </button>
+          <button
+            id="tab-lifo"
+            onclick="setViewMode('lifo')"
+            class="flex-1 sm:flex-initial px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold transition text-zinc-400 hover:text-white"
+          >
+            LIFO — Stack
+          </button>
+        </div>
+
+        <!-- Global Video Sequence Trigger -->
+        <button
+          id="globalVideoSeqBtn"
+          onclick="runGlobalVideoSequence()"
+          class="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-yellow-400 hover:bg-yellow-300 active:scale-[0.98] text-zinc-950 font-bold text-xs sm:text-sm transition flex items-center justify-center gap-2 shadow-lg shadow-yellow-400/15"
+        >
+          <span id="globalSeqIcon">▶</span>
+          <span id="globalSeqLabel">Reproduzir Sequência do Vídeo (1-2-3)</span>
+        </button>
+
+        <!-- Sound Toggle Button (Desktop) -->
+        <button
+          id="soundToggleBtnDesktop"
+          onclick="toggleSound()"
+          title="Alternar efeitos sonoros"
+          class="hidden lg:inline-flex p-2.5 rounded-xl border border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 transition active:scale-95"
+          aria-label="Alternar som"
+        >
+          <span id="soundIconDesktop">🔊</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Workspace -->
+  <main class="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+    
+    <!-- Global Toast / Status Feedback Banner (Replaces alert()) -->
+    <div id="feedbackBanner" class="hidden mb-6 px-4 py-3 rounded-xl border text-sm font-medium flex items-center justify-between transition-all">
+      <div class="flex items-center gap-2.5">
+        <span id="feedbackIcon" class="text-base">⚠️</span>
+        <span id="feedbackText">Mensagem do sistema</span>
+      </div>
+      <button onclick="hideFeedback()" class="text-xs opacity-70 hover:opacity-100 px-2 py-1 rounded-lg">✕</button>
+    </div>
+
+    <!-- Panels Grid -->
+    <div id="panelsGrid" class="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 items-stretch">
+
+      <!-- ========================================================= -->
+      <!-- 1. FIFO (QUEUE / FILA) PANEL                              -->
+      <!-- ========================================================= -->
+      <section
+        id="panel-fifo"
+        class="rounded-2xl bg-card border border-cardBorder p-5 sm:p-7 flex flex-col justify-between shadow-2xl transition-all"
+      >
+        <!-- Header replicating the video's bold title & yellow badge -->
+        <div class="text-center space-y-2.5">
+          <div class="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-zinc-900 border border-zinc-800 text-[11px] font-mono uppercase tracking-wider text-zinc-400">
+            Estrutura Linear • Capacidade Máx: 5
+          </div>
+          <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
+            O que é FIFO?
+          </h2>
+          <div>
+            <span class="inline-block bg-yellow-400 text-zinc-950 font-extrabold text-base sm:text-lg px-4 py-1 rounded-md tracking-tight shadow-sm">
+              Primeiro a Entrar, Primeiro a Sair
+            </span>
+          </div>
+          <p class="text-xs sm:text-sm text-zinc-400 font-medium">        
+          </p>
+        </div>
+
+        <!-- Visual Animation Stage (Exact Video Style) -->
+        <div class="my-6 sm:my-8 flex flex-col items-center justify-center min-h-[250px] sm:min-h-[270px] relative select-none">
+          
+          <!-- Container wrapper sized dynamically for desktop/mobile -->
+          <div id="fifoStage" class="relative w-[320px] sm:w-[390px] h-[210px] flex items-center justify-center">
+            
+            <!-- SVG Vector Arrows (Top yellow directional arrow + Left curved entry + Right curved exit) -->
+            <svg class="absolute inset-0 w-full h-full pointer-events-none overflow-visible" viewBox="0 0 390 210" fill="none">
+              <defs>
+                <!-- Crisp white arrowhead -->
+                <marker id="whiteArrow" viewBox="0 0 12 12" refX="9" refY="6" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                  <path d="M 1 1.5 L 10 6 L 1 10.5" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+                </marker>
+                <!-- Bright yellow arrowhead -->
+                <marker id="yellowArrow" viewBox="0 0 12 12" refX="9" refY="6" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                  <path d="M 1 1.5 L 10 6 L 1 10.5" fill="none" stroke="#facc15" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+                </marker>
+              </defs>
+
+              <!-- Yellow horizontal direction arrow above the Queue pipe -->
+              <line x1="72" y1="62" x2="318" y2="62" stroke="#facc15" stroke-width="3" stroke-linecap="round" marker-end="url(#yellowArrow)" />
+
+              <!-- Left curved entry arrow (sweeping down into left opening) -->
+              <path d="M 16 26 C 14 78, 30 105, 64 105" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" marker-end="url(#whiteArrow)" />
+
+              <!-- Right curved exit arrow (sweeping out of right opening and curving down) -->
+              <path d="M 326 105 C 362 105, 376 132, 374 184" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" marker-end="url(#whiteArrow)" />
+            </svg>
+
+            <!-- Horizontal Open-Ended Queue Pipe -->
+            <!-- Top & Bottom crisp white rails, open left/right mouths -->
+            <div
+              id="fifoContainer"
+              class="relative w-[252px] sm:w-[256px] h-[60px] border-y-[3px] border-white bg-zinc-900/75 flex items-center"
+            >
+              <!-- Subtle empty slot guides -->
+              <div class="w-full h-full grid grid-cols-5 divide-x divide-zinc-800/40 pointer-events-none">
+                <div></div><div></div><div></div><div></div><div></div>
+              </div>
+
+              <!-- Dynamic Blocks Layer -->
+              <div id="fifoBlocksLayer" class="absolute inset-0 pointer-events-none"></div>
+            </div>
+
+            <!-- Label "Queue" underneath -->
+            <div class="absolute bottom-4 left-1/2 -translate-x-1/2 text-center">
+              <span class="text-white font-bold text-lg sm:text-xl tracking-wide">Queue</span>
+              <span class="block text-[11px] font-mono text-zinc-500">(Fila)</span>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Controls & Telemetry -->
+        <div class="space-y-4">
+          <!-- Interactive Buttons -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <button
+              id="btnEnqueue"
+              onclick="enqueueItem()"
+              class="px-3 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 active:scale-[0.97] text-zinc-950 font-bold text-xs sm:text-sm transition flex items-center justify-center gap-1.5 shadow-md shadow-emerald-500/10"
+            >
+              <span>+ Entrar</span>
+              <span class="text-[11px] opacity-80 font-normal"></span>
+            </button>
+
+            <button
+              id="btnDequeue"
+              onclick="dequeueItem()"
+              class="px-3 py-2.5 rounded-xl bg-rose-500 hover:bg-rose-400 active:scale-[0.97] text-white font-bold text-xs sm:text-sm transition flex items-center justify-center gap-1.5 shadow-md shadow-rose-500/10"
+            >
+              <span>- Sair</span>
+              <span class="text-[11px] opacity-90 font-normal"></span>
+            </button>
+
+            <button
+              id="btnFifoDemo"
+              onclick="togglePanelDemo('fifo')"
+              class="px-3 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 active:scale-[0.97] text-yellow-400 border border-zinc-700 font-semibold text-xs sm:text-sm transition flex items-center justify-center gap-1.5"
+            >
+              <span id="fifoDemoIcon">▶</span>
+              <span id="fifoDemoLabel">Demonstração</span>
+            </button>
+
+            <button
+              onclick="resetFifo(true)"
+              class="px-3 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 active:scale-[0.97] text-zinc-300 border border-zinc-800 font-semibold text-xs sm:text-sm transition flex items-center justify-center gap-1.5"
+            >
+              <span>↺ Limpar</span>
+            </button>
+          </div>
+
+          <!-- Live Status Strip -->
+          <div class="rounded-xl bg-zinc-950 border border-zinc-800/90 p-3.5 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+            <div>
+              <span class="block text-zinc-500 mb-0.5">Próximo (Front)</span>
+              <span id="fifoPeek" class="font-mono font-bold text-sm text-yellow-400">Vazio</span>
+            </div>
+            <div>
+              <span class="block text-zinc-500 mb-0.5">Complexidade</span>
+              <span class="font-mono font-bold text-sm text-emerald-400">O(1)</span>
+            </div>
+            <div>
+              <span class="block text-zinc-500 mb-0.5">Ordem Entrada</span>
+              <span id="fifoInOrder" class="font-mono text-zinc-200 truncate block">—</span>
+            </div>
+            <div>
+              <span class="block text-zinc-500 mb-0.5">Ordem Saída</span>
+              <span id="fifoOutOrder" class="font-mono text-yellow-300 truncate block">—</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================= -->
+      <!-- 2. LIFO (STACK / PILHA) PANEL                             -->
+      <!-- ========================================================= -->
+      <section
+        id="panel-lifo"
+        class="rounded-2xl bg-card border border-cardBorder p-5 sm:p-7 flex flex-col justify-between shadow-2xl transition-all"
+      >
+        <!-- Header replicating the video's bold title & yellow badge -->
+        <div class="text-center space-y-2.5">
+          <div class="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-zinc-900 border border-zinc-800 text-[11px] font-mono uppercase tracking-wider text-zinc-400">
+            Estrutura Linear • Capacidade Máx: 5
+          </div>
+          <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
+            O que é LIFO?
+          </h2>
+          <div>
+            <span class="inline-block bg-yellow-400 text-zinc-950 font-extrabold text-base sm:text-lg px-4 py-1 rounded-md tracking-tight shadow-sm">
+              Último a Entrar, Primeiro a Sair
+            </span>
+          </div>
+          <p class="text-xs sm:text-sm text-zinc-400 font-medium">         
+          </p>
+        </div>
+
+        <!-- Visual Animation Stage (Exact Video Style) -->
+        <div class="my-6 sm:my-8 flex flex-col items-center justify-center min-h-[250px] sm:min-h-[270px] relative select-none">
+          
+          <div id="lifoStage" class="relative w-[300px] sm:w-[340px] h-[265px] flex flex-col items-center justify-end pb-2">
+            
+            <!-- SVG Curved Entry & Exit Arrows at the top mouth of the Stack -->
+            <svg class="absolute top-0 left-0 w-full h-[105px] pointer-events-none overflow-visible" viewBox="0 0 340 105" fill="none">
+              <!-- Left curved entry arrow (arcs from top-left down into the top opening) -->
+              <path d="M 96 14 C 134 14, 152 38, 152 84" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" marker-end="url(#whiteArrow)" />
+
+              <!-- Right curved exit arrow (arcs from top opening up and out to top-right) -->
+              <path d="M 188 84 C 188 38, 206 14, 244 14" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" marker-end="url(#whiteArrow)" />
+            </svg>
+
+            <!-- Vertical U-Shaped Stack Container (Open top, closed bottom & sides) -->
+            <div class="relative flex items-end">
+              <div
+                id="lifoContainer"
+                class="relative w-[64px] h-[182px] border-x-[3px] border-b-[3px] border-white rounded-b-xl bg-zinc-900/75 flex flex-col justify-end"
+              >
+                <!-- Subtle horizontal slot dividers -->
+                <div class="w-full h-full grid grid-rows-5 divide-y divide-zinc-800/40 pointer-events-none">
+                  <div></div><div></div><div></div><div></div><div></div>
+                </div>
+
+                <!-- Dynamic Stacked Blocks Layer -->
+                <div id="lifoBlocksLayer" class="absolute inset-0 pointer-events-none"></div>
+              </div>
+
+              <!-- Label "Stack" positioned to the bottom-right just like in the video -->
+              <div class="ml-4 mb-1 text-left">
+                <span class="text-white font-bold text-lg sm:text-xl tracking-wide block leading-none">Stack</span>
+                <span class="text-[11px] font-mono text-zinc-500">(Pilha)</span>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Controls & Telemetry -->
+        <div class="space-y-4">
+          <!-- Interactive Buttons -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <button
+              id="btnPush"
+              onclick="pushItem()"
+              class="px-3 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 active:scale-[0.97] text-zinc-950 font-bold text-xs sm:text-sm transition flex items-center justify-center gap-1.5 shadow-md shadow-emerald-500/10"
+            >
+              <span>+ Empilhar</span>
+              <span class="text-[11px] opacity-80 font-normal"></span>
+            </button>
+
+            <button
+              id="btnPop"
+              onclick="popItem()"
+              class="px-3 py-2.5 rounded-xl bg-rose-500 hover:bg-rose-400 active:scale-[0.97] text-white font-bold text-xs sm:text-sm transition flex items-center justify-center gap-1.5 shadow-md shadow-rose-500/10"
+            >
+              <span>- Desempilhar</span>
+              <span class="text-[11px] opacity-90 font-normal"></span>
+            </button>
+
+            <button
+              id="btnLifoDemo"
+              onclick="togglePanelDemo('lifo')"
+              class="px-3 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 active:scale-[0.97] text-yellow-400 border border-zinc-700 font-semibold text-xs sm:text-sm transition flex items-center justify-center gap-1.5"
+            >
+              <span id="lifoDemoIcon">▶</span>
+              <span id="lifoDemoLabel">Demonstração</span>
+            </button>
+
+            <button
+              onclick="resetLifo(true)"
+              class="px-3 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 active:scale-[0.97] text-zinc-300 border border-zinc-800 font-semibold text-xs sm:text-sm transition flex items-center justify-center gap-1.5"
+            >
+              <span>↺ Limpar</span>
+            </button>
+          </div>
+
+          <!-- Live Status Strip -->
+          <div class="rounded-xl bg-zinc-950 border border-zinc-800/90 p-3.5 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+            <div>
+              <span class="block text-zinc-500 mb-0.5">Topo (Peek)</span>
+              <span id="lifoPeek" class="font-mono font-bold text-sm text-yellow-400">Vazio</span>
+            </div>
+            <div>
+              <span class="block text-zinc-500 mb-0.5">Complexidade</span>
+              <span class="font-mono font-bold text-sm text-emerald-400">O(1)</span>
+            </div>
+            <div>
+              <span class="block text-zinc-500 mb-0.5">Ordem Entrada</span>
+              <span id="lifoInOrder" class="font-mono text-zinc-200 truncate block">—</span>
+            </div>
+            <div>
+              <span class="block text-zinc-500 mb-0.5">Ordem Saída</span>
+              <span id="lifoOutOrder" class="font-mono text-yellow-300 truncate block">—</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- Educational Quick Reference Footer Cards -->
+    <section class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="rounded-2xl bg-zinc-900/50 border border-zinc-800/80 p-4 sm:p-5 flex items-start gap-3.5">
+        <div class="w-9 h-9 rounded-xl bg-yellow-400/10 border border-yellow-400/20 text-yellow-400 flex items-center justify-center font-mono font-bold shrink-0">
+          1→2
+        </div>
+        <div>
+          <h3 class="text-sm font-bold text-white">Quando usar FIFO (<span class="font-mono text-yellow-400">Queue</span>)?</h3>
+          <p class="text-xs text-zinc-400 mt-1 leading-relaxed">
+            Ideal quando a ordem de chegada deve ser respeitada: filas de atendimento, filas de impressão, processamento de requisições em servidores e algoritmos de busca em largura (<span class="font-mono text-zinc-300">BFS</span>).
+          </p>
+        </div>
+      </div>
+
+      <div class="rounded-2xl bg-zinc-900/50 border border-zinc-800/80 p-4 sm:p-5 flex items-start gap-3.5">
+        <div class="w-9 h-9 rounded-xl bg-yellow-400/10 border border-yellow-400/20 text-yellow-400 flex items-center justify-center font-mono font-bold shrink-0">
+          2→1
+        </div>
+        <div>
+          <h3 class="text-sm font-bold text-white">Quando usar LIFO (<span class="font-mono text-yellow-400">Stack</span>)?</h3>
+          <p class="text-xs text-zinc-400 mt-1 leading-relaxed">
+            Essencial quando o item mais recente precisa ser processado primeiro: função <span class="font-mono text-zinc-300">Ctrl+Z</span> (Desfazer), histórico de navegação, pilha de chamadas de funções (<span class="font-mono text-zinc-300">Call Stack</span>) e busca em profundidade (<span class="font-mono text-zinc-300">DFS</span>).
+          </p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Minimalist Footer -->
+  <!-- <footer class="w-full border-t border-zinc-900 py-4 px-4 text-center text-xs text-zinc-500">
+    Visualizador Interativo de Estruturas de Dados • <span class="text-zinc-400 font-medium">FIFO (Queue) & LIFO (Stack)</span>
+  </footer> -->
+
+  <!-- Interactive Logic & Animation Engine -->
+  <script>
+    // =========================================================================
+    // CONFIGURATION & PALETTE (Matching the video's vibrant block colors)
+    // =========================================================================
+    const MAX_CAPACITY = 5;
+
+    const BLOCK_COLORS = [
+      '#db2777', // 1: Magenta / Pink
+      '#f97316', // 2: Vibrant Orange
+      '#16a34a', // 3: Emerald Green
+      '#dc2626', // 4: Crimson Red
+      '#06b6d4', // 5: Electric Cyan
+      '#2563eb', // 6: Royal Blue
+      '#eab308', // 7: Warm Yellow/Amber
+      '#9333ea'  // 8: Vivid Purple
+    ];
+
+    function getColorForNumber(num) {
+      return BLOCK_COLORS[(num - 1) % BLOCK_COLORS.length];
+    }
+
+    // =========================================================================
+    // STATE MANAGEMENT
+    // =========================================================================
+    const state = {
+      viewMode: 'both', // 'both' | 'fifo' | 'lifo'
+      soundEnabled: true,
+
+      // FIFO (Queue) state
+      fifoItems: [], // Index 0 is Front (rightmost exit), last index is Rear (leftmost entrance)
+      fifoCounter: 1,
+      fifoInHistory: [],
+      fifoOutHistory: [],
+
+      // LIFO (Stack) state
+      lifoItems: [], // Index 0 is Bottom, last index is Top
+      lifoCounter: 1,
+      lifoInHistory: [],
+      lifoOutHistory: [],
+
+      // Demo automation cancellation tokens
+      fifoDemoToken: null,
+      lifoDemoToken: null,
+      globalDemoToken: null
+    };
+
+    // =========================================================================
+    // LIGHTWEIGHT WEB AUDIO SYNTHESIZER (Tactile feedback without external URLs)
+    // =========================================================================
+    let audioCtx = null;
+
+    function playTone(type) {
+      if (!state.soundEnabled) return;
+      try {
+        if (!audioCtx) {
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        const now = audioCtx.currentTime;
+
+        if (type === 'in') {
+          // Rising pleasant pop
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(320, now);
+          osc.frequency.exponentialRampToValueAtTime(560, now + 0.11);
+          gain.gain.setValueAtTime(0.08, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(now);
+          osc.stop(now + 0.12);
+        } else if (type === 'out') {
+          // Falling smooth whoosh-pop
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(480, now);
+          osc.frequency.exponentialRampToValueAtTime(240, now + 0.13);
+          gain.gain.setValueAtTime(0.08, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(now);
+          osc.stop(now + 0.14);
+        } else if (type === 'error') {
+          // Gentle low thud for overflow/underflow
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(140, now);
+          osc.frequency.exponentialRampToValueAtTime(95, now + 0.15);
+          gain.gain.setValueAtTime(0.06, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(now);
+          osc.stop(now + 0.16);
+        }
+      } catch (e) {
+        // Ignore audio restrictions if blocked
+      }
+    }
+
+    function toggleSound() {
+      state.soundEnabled = !state.soundEnabled;
+      const icon = state.soundEnabled ? '🔊' : '🔇';
+      document.getElementById('soundIconMobile').textContent = icon;
+      document.getElementById('soundIconDesktop').textContent = icon;
+    }
+
+    // =========================================================================
+    // FEEDBACK BANNER (Non-blocking replacement for alert())
+    // =========================================================================
+    let feedbackTimeout = null;
+
+    function showFeedback(message, variant = 'warning') {
+      const banner = document.getElementById('feedbackBanner');
+      const icon = document.getElementById('feedbackIcon');
+      const text = document.getElementById('feedbackText');
+
+      banner.className = 'mb-6 px-4 py-3 rounded-xl border text-sm font-medium flex items-center justify-between transition-all';
+
+      if (variant === 'error') {
+        banner.classList.add('bg-rose-950/60', 'border-rose-800/80', 'text-rose-200');
+        icon.textContent = '⚠️';
+      } else if (variant === 'info') {
+        banner.classList.add('bg-yellow-400/10', 'border-yellow-400/30', 'text-yellow-200');
+        icon.textContent = '✨';
+      } else {
+        banner.classList.add('bg-zinc-900', 'border-zinc-700', 'text-zinc-200');
+        icon.textContent = 'ℹ️';
+      }
+
+      text.textContent = message;
+      banner.classList.remove('hidden');
+
+      clearTimeout(feedbackTimeout);
+      feedbackTimeout = setTimeout(() => {
+        hideFeedback();
+      }, 3600);
+    }
+
+    function hideFeedback() {
+      document.getElementById('feedbackBanner').classList.add('hidden');
+    }
+
+    // =========================================================================
+    // VIEW MODE SWITCHER
+    // =========================================================================
+    function setViewMode(mode) {
+      state.viewMode = mode;
+
+      const tabs = ['both', 'fifo', 'lifo'];
+      tabs.forEach((t) => {
+        const btn = document.getElementById(`tab-${t}`);
+        if (t === mode) {
+          btn.className = 'flex-1 sm:flex-initial px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold transition bg-zinc-800 text-white shadow-sm';
+        } else {
+          btn.className = 'flex-1 sm:flex-initial px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold transition text-zinc-400 hover:text-white';
+        }
+      });
+
+      const grid = document.getElementById('panelsGrid');
+      const fifoPanel = document.getElementById('panel-fifo');
+      const lifoPanel = document.getElementById('panel-lifo');
+
+      if (mode === 'both') {
+        grid.className = 'grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 items-stretch';
+        fifoPanel.classList.remove('hidden', 'max-w-2xl', 'mx-auto', 'w-full');
+        lifoPanel.classList.remove('hidden', 'max-w-2xl', 'mx-auto', 'w-full');
+      } else if (mode === 'fifo') {
+        grid.className = 'grid grid-cols-1 gap-6 items-stretch';
+        fifoPanel.classList.remove('hidden');
+        fifoPanel.classList.add('max-w-2xl', 'mx-auto', 'w-full');
+        lifoPanel.classList.add('hidden');
+      } else if (mode === 'lifo') {
+        grid.className = 'grid grid-cols-1 gap-6 items-stretch';
+        lifoPanel.classList.remove('hidden');
+        lifoPanel.classList.add('max-w-2xl', 'mx-auto', 'w-full');
+        fifoPanel.classList.add('hidden');
+      }
+
+      // Recalculate block positions cleanly on layout change
+      renderFifoPositions();
+      renderLifoPositions();
+    }
+
+    // =========================================================================
+    // FIFO (QUEUE) OPERATIONS & RENDERING
+    // =========================================================================
+    function getFifoSlotLeftPx(slotIndex) {
+      // Container inner width is ~252px (or 256px on sm+), 5 slots of ~50px each
+      // Slot 0 is the rightmost exit slot; Slot 4 is the leftmost entry slot
+      const container = document.getElementById('fifoContainer');
+      const containerWidth = container ? container.clientWidth : 252;
+      const slotWidth = containerWidth / MAX_CAPACITY;
+      const blockWidth = window.innerWidth <= 420 ? 38 : 44;
+      const visualSlot = (MAX_CAPACITY - 1) - slotIndex; // 0 -> rightmost (4), 4 -> leftmost (0)
+      return Math.round(visualSlot * slotWidth + (slotWidth - blockWidth) / 2);
+    }
+
+    function renderFifoPositions() {
+      const layer = document.getElementById('fifoBlocksLayer');
+      state.fifoItems.forEach((item, index) => {
+        const el = layer.querySelector(`[data-block-id="${item.id}"]`);
+        if (el) {
+          el.style.left = `${getFifoSlotLeftPx(index)}px`;
+          el.style.top = '50%';
+          el.style.marginTop = window.innerWidth <= 420 ? '-19px' : '-22px';
+        }
+      });
+      updateFifoTelemetry();
+    }
+
+    function updateFifoTelemetry() {
+      const peekEl = document.getElementById('fifoPeek');
+      const inEl = document.getElementById('fifoInOrder');
+      const outEl = document.getElementById('fifoOutOrder');
+
+      if (state.fifoItems.length > 0) {
+        const front = state.fifoItems[0];
+        peekEl.textContent = `#${front.value}`;
+        peekEl.style.color = front.color;
+      } else {
+        peekEl.textContent = 'Vazio';
+        peekEl.style.color = '#facc15';
+      }
+
+      inEl.textContent = state.fifoInHistory.length ? state.fifoInHistory.join(' → ') : '—';
+      outEl.textContent = state.fifoOutHistory.length ? state.fifoOutHistory.join(' → ') : '—';
+    }
+
+    function enqueueItem(isAutomated = false) {
+      if (!isAutomated) stopAllDemos();
+
+      if (state.fifoItems.length >= MAX_CAPACITY) {
+        playTone('error');
+        const container = document.getElementById('fifoContainer');
+        container.classList.remove('shake-feedback');
+        void container.offsetWidth;
+        container.classList.add('shake-feedback');
+        showFeedback('Queue Overflow! A fila atingiu o limite máximo de 5 elementos.', 'error');
+        return false;
+      }
+
+      const value = state.fifoCounter++;
+      const color = getColorForNumber(value);
+      const id = `fifo-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+
+      const item = { id, value, color };
+      state.fifoItems.push(item);
+      state.fifoInHistory.push(value);
+
+      const layer = document.getElementById('fifoBlocksLayer');
+      const el = document.createElement('div');
+      el.className = 'data-block anim-fifo-in';
+      el.setAttribute('data-block-id', id);
+      el.textContent = value;
+      el.style.backgroundColor = color;
+
+      const slotIndex = state.fifoItems.length - 1;
+      el.style.left = `${getFifoSlotLeftPx(slotIndex)}px`;
+      el.style.top = '50%';
+      el.style.marginTop = window.innerWidth <= 420 ? '-19px' : '-22px';
+
+      layer.appendChild(el);
+      playTone('in');
+
+      // Remove entry animation class after completion so subsequent left-transitions glide smoothly
+      setTimeout(() => {
+        el.classList.remove('anim-fifo-in');
+      }, 540);
+
+      updateFifoTelemetry();
+      return true;
+    }
+
+    function dequeueItem(isAutomated = false) {
+      if (!isAutomated) stopAllDemos();
+
+      if (state.fifoItems.length === 0) {
+        playTone('error');
+        const container = document.getElementById('fifoContainer');
+        container.classList.remove('shake-feedback');
+        void container.offsetWidth;
+        container.classList.add('shake-feedback');
+        showFeedback('Queue Underflow! A fila já está vazia.', 'error');
+        return false;
+      }
+
+      // First In, First Out: remove index 0 (oldest element at the right exit)
+      const removed = state.fifoItems.shift();
+      state.fifoOutHistory.push(removed.value);
+
+      const layer = document.getElementById('fifoBlocksLayer');
+      const el = layer.querySelector(`[data-block-id="${removed.id}"]`);
+
+      if (el) {
+        el.classList.remove('anim-fifo-in');
+        el.classList.add('anim-fifo-out');
+        setTimeout(() => {
+          if (el.parentNode) el.parentNode.removeChild(el);
+        }, 500);
+      }
+
+      playTone('out');
+
+      // Shift remaining elements smoothly toward the right exit
+      renderFifoPositions();
+      return true;
+    }
+
+    function resetFifo(manual = false) {
+      if (manual) stopAllDemos();
+      state.fifoItems = [];
+      state.fifoCounter = 1;
+      state.fifoInHistory = [];
+      state.fifoOutHistory = [];
+      document.getElementById('fifoBlocksLayer').innerHTML = '';
+      updateFifoTelemetry();
+    }
+
+    // =========================================================================
+    // LIFO (STACK) OPERATIONS & RENDERING
+    // =========================================================================
+    function getLifoSlotBottomPx(slotIndex) {
+      // Container inner height is ~179px (182px - 3px bottom border), 5 vertical slots
+      const container = document.getElementById('lifoContainer');
+      const innerHeight = container ? container.clientHeight - 3 : 179;
+      const slotHeight = innerHeight / MAX_CAPACITY;
+      // Stack blocks cleanly from bottom (slot 0) upward
+      const step = Math.max(33, slotHeight - 1);
+      return Math.round(4 + slotIndex * step);
+    }
+
+    function renderLifoPositions() {
+      const layer = document.getElementById('lifoBlocksLayer');
+      state.lifoItems.forEach((item, index) => {
+        const el = layer.querySelector(`[data-block-id="${item.id}"]`);
+        if (el) {
+          el.style.bottom = `${getLifoSlotBottomPx(index)}px`;
+          el.style.left = '50%';
+          el.style.marginLeft = window.innerWidth <= 420 ? '-19px' : '-22px';
+        }
+      });
+      updateLifoTelemetry();
+    }
+
+    function updateLifoTelemetry() {
+      const peekEl = document.getElementById('lifoPeek');
+      const inEl = document.getElementById('lifoInOrder');
+      const outEl = document.getElementById('lifoOutOrder');
+
+      if (state.lifoItems.length > 0) {
+        const top = state.lifoItems[state.lifoItems.length - 1];
+        peekEl.textContent = `#${top.value}`;
+        peekEl.style.color = top.color;
+      } else {
+        peekEl.textContent = 'Vazio';
+        peekEl.style.color = '#facc15';
+      }
+
+      inEl.textContent = state.lifoInHistory.length ? state.lifoInHistory.join(' → ') : '—';
+      outEl.textContent = state.lifoOutHistory.length ? state.lifoOutHistory.join(' → ') : '—';
+    }
+
+    function pushItem(isAutomated = false) {
+      if (!isAutomated) stopAllDemos();
+
+      if (state.lifoItems.length >= MAX_CAPACITY) {
+        playTone('error');
+        const container = document.getElementById('lifoContainer');
+        container.classList.remove('shake-feedback');
+        void container.offsetWidth;
+        container.classList.add('shake-feedback');
+        showFeedback('Stack Overflow! A pilha atingiu o limite máximo de 5 elementos.', 'error');
+        return false;
+      }
+
+      const value = state.lifoCounter++;
+      const color = getColorForNumber(value);
+      const id = `lifo-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+
+      const item = { id, value, color };
+      state.lifoItems.push(item);
+      state.lifoInHistory.push(value);
+
+      const layer = document.getElementById('lifoBlocksLayer');
+      const el = document.createElement('div');
+      el.className = 'data-block anim-lifo-in';
+      el.setAttribute('data-block-id', id);
+      el.textContent = value;
+      el.style.backgroundColor = color;
+
+      const slotIndex = state.lifoItems.length - 1;
+      el.style.bottom = `${getLifoSlotBottomPx(slotIndex)}px`;
+      el.style.left = '50%';
+      el.style.marginLeft = window.innerWidth <= 420 ? '-19px' : '-22px';
+
+      layer.appendChild(el);
+      playTone('in');
+
+      setTimeout(() => {
+        el.classList.remove('anim-lifo-in');
+      }, 560);
+
+      updateLifoTelemetry();
+      return true;
+    }
+
+    function popItem(isAutomated = false) {
+      if (!isAutomated) stopAllDemos();
+
+      if (state.lifoItems.length === 0) {
+        playTone('error');
+        const container = document.getElementById('lifoContainer');
+        container.classList.remove('shake-feedback');
+        void container.offsetWidth;
+        container.classList.add('shake-feedback');
+        showFeedback('Stack Underflow! A pilha já está vazia.', 'error');
+        return false;
+      }
+
+      // Last In, First Out: remove topmost element
+      const removed = state.lifoItems.pop();
+      state.lifoOutHistory.push(removed.value);
+
+      const layer = document.getElementById('lifoBlocksLayer');
+      const el = layer.querySelector(`[data-block-id="${removed.id}"]`);
+
+      if (el) {
+        el.classList.remove('anim-lifo-in');
+        el.classList.add('anim-lifo-out');
+        setTimeout(() => {
+          if (el.parentNode) el.parentNode.removeChild(el);
+        }, 500);
+      }
+
+      playTone('out');
+      updateLifoTelemetry();
+      return true;
+    }
+
+    function resetLifo(manual = false) {
+      if (manual) stopAllDemos();
+      state.lifoItems = [];
+      state.lifoCounter = 1;
+      state.lifoInHistory = [];
+      state.lifoOutHistory = [];
+      document.getElementById('lifoBlocksLayer').innerHTML = '';
+      updateLifoTelemetry();
+    }
+
+    // =========================================================================
+    // AUTOMATED VIDEO SEQUENCE & INDIVIDUAL DEMOS
+    // =========================================================================
+    function sleep(ms) {
+      return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
+    function stopAllDemos() {
+      state.fifoDemoToken = null;
+      state.lifoDemoToken = null;
+      state.globalDemoToken = null;
+
+      document.getElementById('fifoDemoIcon').textContent = '▶';
+      document.getElementById('fifoDemoLabel').textContent = 'Demonstração';
+      document.getElementById('lifoDemoIcon').textContent = '▶';
+      document.getElementById('lifoDemoLabel').textContent = 'Demonstração';
+      document.getElementById('globalSeqIcon').textContent = '▶';
+      document.getElementById('globalSeqLabel').textContent = 'Reproduzir Sequência do Vídeo (1-2-3)';
+    }
+
+    // Runs the exact 1-2-3 + 4-5-6 choreography from the video on a single structure
+    async function togglePanelDemo(type) {
+      const tokenKey = type === 'fifo' ? 'fifoDemoToken' : 'lifoDemoToken';
+      const isCurrentlyRunning = Boolean(state[tokenKey]);
+
+      stopAllDemos();
+      if (isCurrentlyRunning) return;
+
+      const token = Symbol(type);
+      state[tokenKey] = token;
+
+      const iconEl = document.getElementById(type === 'fifo' ? 'fifoDemoIcon' : 'lifoDemoIcon');
+      const labelEl = document.getElementById(type === 'fifo' ? 'fifoDemoLabel' : 'lifoDemoLabel');
+      iconEl.textContent = '⏹';
+      labelEl.textContent = 'Parar';
+
+      const resetFn = type === 'fifo' ? resetFifo : resetLifo;
+      const addFn = type === 'fifo' ? enqueueItem : pushItem;
+      const removeFn = type === 'fifo' ? dequeueItem : popItem;
+
+      resetFn(false);
+      await sleep(300);
+
+      // Wave 1: 1, 2, 3 enter -> 3 items exit
+      for (let i = 0; i < 3; i++) {
+        if (state[tokenKey] !== token) return;
+        addFn(true);
+        await sleep(680);
+      }
+
+      await sleep(350);
+
+      for (let i = 0; i < 3; i++) {
+        if (state[tokenKey] !== token) return;
+        removeFn(true);
+        await sleep(680);
+      }
+
+      await sleep(450);
+
+      // Wave 2: 4, 5, 6 enter -> 3 items exit (matching second half of the video)
+      for (let i = 0; i < 3; i++) {
+        if (state[tokenKey] !== token) return;
+        addFn(true);
+        await sleep(680);
+      }
+
+      await sleep(350);
+
+      for (let i = 0; i < 3; i++) {
+        if (state[tokenKey] !== token) return;
+        removeFn(true);
+        await sleep(680);
+      }
+
+      if (state[tokenKey] === token) {
+        stopAllDemos();
+      }
+    }
+
+    // Runs the side-by-side 1-2-3 comparison simultaneously so learners see FIFO (1-2-3) vs LIFO (3-2-1)
+    async function runGlobalVideoSequence() {
+      const isRunning = Boolean(state.globalDemoToken);
+      stopAllDemos();
+      if (isRunning) return;
+
+      // Ensure side-by-side view so the comparison is immediately visible
+      if (state.viewMode !== 'both') {
+        setViewMode('both');
+      }
+
+      const token = Symbol('global');
+      state.globalDemoToken = token;
+
+      document.getElementById('globalSeqIcon').textContent = '⏹';
+      document.getElementById('globalSeqLabel').textContent = 'Parar Sequência';
+
+      resetFifo(false);
+      resetLifo(false);
+      showFeedback('Comparando entrada 1 → 2 → 3 e ordem de saída em FIFO vs LIFO...', 'info');
+
+      await sleep(350);
+
+      // Insert 1, 2, 3 into both structures simultaneously
+      for (let i = 0; i < 3; i++) {
+        if (state.globalDemoToken !== token) return;
+        enqueueItem(true);
+        pushItem(true);
+        await sleep(750);
+      }
+
+      await sleep(500);
+
+      // Remove all 3 from both structures simultaneously
+      for (let i = 0; i < 3; i++) {
+        if (state.globalDemoToken !== token) return;
+        dequeueItem(true);
+        popItem(true);
+        await sleep(780);
+      }
+
+      if (state.globalDemoToken === token) {
+        stopAllDemos();
+        showFeedback('Concluído! FIFO saiu como 1 → 2 → 3, enquanto LIFO saiu como 3 → 2 → 1.', 'info');
+      }
+    }
+
+    // =========================================================================
+    // INITIALIZATION & RESPONSIVE RESIZE HANDLER
+    // =========================================================================
+    window.addEventListener('resize', () => {
+      renderFifoPositions();
+      renderLifoPositions();
+    });
+
+    window.addEventListener('DOMContentLoaded', () => {
+      // Pre-populate with a clean initial demonstration state (1, 2) so the stage is immediately alive
+      enqueueItem(true);
+      pushItem(true);
+      setTimeout(() => {
+        enqueueItem(true);
+        pushItem(true);
+      }, 280);
+    });
+  </script>
+</body>
+</html>
